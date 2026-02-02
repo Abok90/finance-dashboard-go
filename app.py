@@ -37,26 +37,26 @@ def clean_currency(val):
 # --- تحميل البيانات ---
 @st.cache_data
 def load_data():
-    # هنا نستخدم الأسماء القصيرة الجديدة
     try:
+        # قراءة الملفات بالأسماء القصيرة
         df_exp = pd.read_csv("expenses.csv")
         df_inc = pd.read_csv("income.csv")
-    except FileNotFoundError as e:
-        st.error(f"⚠️ خطأ: لم يتم العثور على الملفات. تأكد أنك سميت الملفات expenses.csv و income.csv في GitHub.")
+    except FileNotFoundError:
+        st.error("⚠️ لم يتم العثور على الملفات! تأكد أن أسماء الملفات في GitHub هي expenses.csv و income.csv")
         st.stop()
 
     # تنظيف المصاريف
     df_exp['المبلغ (جم)'] = df_exp['المبلغ (جم)'].apply(clean_currency)
     df_exp['التاريخ'] = pd.to_datetime(df_exp['التاريخ'], errors='coerce')
-    df_exp = df_exp.dropna(subset=['التاريخ']) # حذف الصفوف الفارغة
-    df_exp = df_exp[df_exp['التاريخ'].dt.year > 2023] # تجاهل تواريخ 2011 القديمة
+    df_exp = df_exp.dropna(subset=['التاريخ']) 
+    df_exp = df_exp[df_exp['التاريخ'].dt.year > 2023] # فلتر السنوات القديمة
     df_exp['الشهر_سنة'] = df_exp['التاريخ'].dt.strftime('%Y-%m')
     
     # تنظيف الدخل
     df_inc['المبلغ المحصل (جم)'] = df_inc['المبلغ المحصل (جم)'].apply(clean_currency)
     df_inc['التاريخ'] = pd.to_datetime(df_inc['التاريخ'], errors='coerce')
     df_inc = df_inc.dropna(subset=['التاريخ'])
-    df_inc = df_inc[df_inc['التاريخ'].dt.year > 2023] # تجاهل تواريخ 2011 القديمة
+    df_inc = df_inc[df_inc['التاريخ'].dt.year > 2023]
     df_inc['الشهر_سنة'] = df_inc['التاريخ'].dt.strftime('%Y-%m')
 
     return df_exp, df_inc
@@ -66,8 +66,12 @@ df_exp, df_inc = load_data()
 
 # --- الفلاتر الجانبية ---
 st.sidebar.header("📅 فلترة التاريخ")
-min_date = min(df_exp['التاريخ'].min(), df_inc['التاريخ'].min())
-max_date = max(df_exp['التاريخ'].max(), df_inc['التاريخ'].max())
+if not df_exp.empty and not df_inc.empty:
+    min_date = min(df_exp['التاريخ'].min(), df_inc['التاريخ'].min())
+    max_date = max(df_exp['التاريخ'].max(), df_inc['التاريخ'].max())
+else:
+    min_date = pd.to_datetime("2024-01-01")
+    max_date = pd.to_datetime("2030-12-31")
 
 start_date = st.sidebar.date_input("من", min_date)
 end_date = st.sidebar.date_input("إلى", max_date)
@@ -92,30 +96,47 @@ col3.metric("التحصيلات", f"{total_inc:,.0f} ج.م")
 
 st.markdown("---")
 
-# --- الرسوم البيانية ---
+# --- الرسوم البيانية (الجزء الذي تم إصلاحه) ---
 st.subheader("📈 مقارنة شهرية")
-monthly_exp = df_exp_filtered.groupby('الشهر_سنة')['المبلغ (جم)'].sum().reset_index()
-monthly_inc = df_inc_filtered.groupby('الشهر_سنة')['المبلغ المحصل (جم)'].sum().reset_index()
-monthly_exp['النوع'] = 'مصروفات'
-monthly_inc['النوع'] = 'تحصيلات'
-combined = pd.concat([monthly_inc, monthly_exp])
 
-fig = px.bar(combined, x='الشهر_سنة', y='المبلغ', color='النوع', 
-             barmode='group', color_discrete_map={'تحصيلات': '#2ecc71', 'مصروفات': '#e74c3c'})
-st.plotly_chart(fig, use_container_width=True)
+if not df_exp_filtered.empty or not df_inc_filtered.empty:
+    # تجميع البيانات
+    monthly_exp = df_exp_filtered.groupby('الشهر_سنة')['المبلغ (جم)'].sum().reset_index()
+    monthly_inc = df_inc_filtered.groupby('الشهر_سنة')['المبلغ المحصل (جم)'].sum().reset_index()
+    
+    # توحيد أسماء الأعمدة (هذا هو الحل للمشكلة)
+    monthly_exp = monthly_exp.rename(columns={'المبلغ (جم)': 'المبلغ'})
+    monthly_inc = monthly_inc.rename(columns={'المبلغ المحصل (جم)': 'المبلغ'})
 
+    monthly_exp['النوع'] = 'مصروفات'
+    monthly_inc['النوع'] = 'تحصيلات'
+    
+    combined = pd.concat([monthly_inc, monthly_exp])
+
+    if not combined.empty:
+        fig = px.bar(combined, x='الشهر_سنة', y='المبلغ', color='النوع', 
+                     barmode='group', color_discrete_map={'تحصيلات': '#2ecc71', 'مصروفات': '#e74c3c'})
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("لا توجد بيانات كافية لعرض الرسم البياني لهذا التاريخ")
+else:
+    st.info("لا توجد بيانات في الفترة المحددة")
+
+# --- الدوائر البيانية ---
 col_pie1, col_pie2 = st.columns(2)
 with col_pie1:
     st.caption("توزيع المصروفات")
-    fig_pie = px.pie(df_exp_filtered, values='المبلغ (جم)', names='البند الرئيسي', hole=0.4)
-    fig_pie.update_layout(showlegend=False)
-    st.plotly_chart(fig_pie, use_container_width=True)
+    if not df_exp_filtered.empty:
+        fig_pie = px.pie(df_exp_filtered, values='المبلغ (جم)', names='البند الرئيسي', hole=0.4)
+        fig_pie.update_layout(showlegend=False)
+        st.plotly_chart(fig_pie, use_container_width=True)
 
 with col_pie2:
     st.caption("مصادر الدخل")
-    fig_pie_inc = px.pie(df_inc_filtered, values='المبلغ المحصل (جم)', names='نوع التحصيل', hole=0.4)
-    fig_pie_inc.update_layout(showlegend=False)
-    st.plotly_chart(fig_pie_inc, use_container_width=True)
+    if not df_inc_filtered.empty:
+        fig_pie_inc = px.pie(df_inc_filtered, values='المبلغ المحصل (جم)', names='نوع التحصيل', hole=0.4)
+        fig_pie_inc.update_layout(showlegend=False)
+        st.plotly_chart(fig_pie_inc, use_container_width=True)
 
 # --- الجداول التفصيلية (داخل أزرار) ---
 with st.expander("اضغط هنا لعرض تفاصيل المصاريف"):
