@@ -42,8 +42,8 @@ def clean_currency(val):
 def load_data():
     # أسماء الملفات كما رفعتها أنت
     files = {
-        "expenses": "expenses.csv",
-        "income": "income.csv"
+        "expenses": "Expenses.csv",
+        "income": "Income.csv"
     }
     
     try:
@@ -134,4 +134,5 @@ with st.expander("📄 اضغط هنا لعرض جدول تفاصيل المصا
 
 with st.expander("📄 اضغط هنا لعرض جدول تفاصيل التحصيلات"):
     st.dataframe(df_inc_filtered[['التاريخ', 'شركة الشحن', 'المبلغ المحصل (جم)']], use_container_width=True)
+
 
