@@ -11,7 +11,7 @@ GID_EXPENSES = "0"
 GID_INCOME = "1950785482"
 
 # =====================================================
-# 📱 Page Config (Mobile First)
+# 📱 Page Config
 # =====================================================
 st.set_page_config(
     page_title="AIDA Finance",
@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # =====================================================
-# 🎨 CSS (Mobile Friendly)
+# 🎨 CSS
 # =====================================================
 st.markdown("""
 <style>
@@ -28,16 +28,19 @@ st.markdown("""
 h1, h2, h3 { text-align: right; font-family: 'Tajawal', sans-serif; }
 
 .stMetric {
-    background: #ffffff;
+    background: white;
     padding: 14px;
     border-radius: 14px;
     margin-bottom: 10px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    text-align: right;
     direction: rtl;
+    text-align: right;
 }
 
-.stDataFrame { direction: rtl; font-size: 0.85rem; }
+.stDataFrame {
+    direction: rtl;
+    font-size: 0.85rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,7 +59,7 @@ def clean_currency(val):
     return val
 
 # =====================================================
-# 📥 Load Data (SAFE – no KeyError)
+# 📥 Load Data (SAFE)
 # =====================================================
 @st.cache_data(ttl=300)
 def load_data():
@@ -66,47 +69,45 @@ def load_data():
     df_exp = pd.read_csv(exp_url)
     df_inc = pd.read_csv(inc_url)
 
-    # -------- detect amount column --------
-    def detect_amount_col(df):
+    # ---- detect amount column
+    def detect_amount(df):
         for col in df.columns:
             c = str(col).lower()
             if any(k in c for k in ["المبلغ", "amount", "egp", "ج"]):
                 return col
         return None
 
-    exp_amount_col = detect_amount_col(df_exp)
-    inc_amount_col = detect_amount_col(df_inc)
+    exp_amount = detect_amount(df_exp)
+    inc_amount = detect_amount(df_inc)
 
-    if exp_amount_col is None or inc_amount_col is None:
-        st.error("❌ لم يتم العثور على عمود المبلغ في Google Sheet")
+    if exp_amount is None or inc_amount is None:
+        st.error("❌ عمود المبلغ غير موجود في Google Sheet")
         st.write("أعمدة المصاريف:", list(df_exp.columns))
         st.write("أعمدة التحصيلات:", list(df_inc.columns))
         st.stop()
 
-    # -------- clean currency --------
-    df_exp[exp_amount_col] = df_exp[exp_amount_col].apply(clean_currency)
-    df_inc[inc_amount_col] = df_inc[inc_amount_col].apply(clean_currency)
+    df_exp[exp_amount] = df_exp[exp_amount].apply(clean_currency)
+    df_inc[inc_amount] = df_inc[inc_amount].apply(clean_currency)
 
-    # -------- unify column name --------
-    df_exp.rename(columns={exp_amount_col: "المبلغ"}, inplace=True)
-    df_inc.rename(columns={inc_amount_col: "المبلغ"}, inplace=True)
+    df_exp.rename(columns={exp_amount: "المبلغ"}, inplace=True)
+    df_inc.rename(columns={inc_amount: "المبلغ"}, inplace=True)
 
-    # -------- detect date column --------
-    def detect_date_col(df):
+    # ---- detect date column
+    def detect_date(df):
         for col in df.columns:
             if "تاريخ" in str(col) or "date" in str(col).lower():
                 return col
         return None
 
-    exp_date_col = detect_date_col(df_exp)
-    inc_date_col = detect_date_col(df_inc)
+    exp_date = detect_date(df_exp)
+    inc_date = detect_date(df_inc)
 
-    if exp_date_col is None or inc_date_col is None:
-        st.error("❌ لم يتم العثور على عمود التاريخ")
+    if exp_date is None or inc_date is None:
+        st.error("❌ عمود التاريخ غير موجود")
         st.stop()
 
-    df_exp["التاريخ"] = pd.to_datetime(df_exp[exp_date_col], errors="coerce")
-    df_inc["التاريخ"] = pd.to_datetime(df_inc[inc_date_col], errors="coerce")
+    df_exp["التاريخ"] = pd.to_datetime(df_exp[exp_date], errors="coerce")
+    df_inc["التاريخ"] = pd.to_datetime(df_inc[inc_date], errors="coerce")
 
     df_exp.dropna(subset=["التاريخ"], inplace=True)
     df_inc.dropna(subset=["التاريخ"], inplace=True)
@@ -115,17 +116,16 @@ def load_data():
         df["السنة"] = df["التاريخ"].dt.year
         df["الشهر"] = df["التاريخ"].dt.month
         df["اليوم"] = df["التاريخ"].dt.day
-        df["شهر"] = df["التاريخ"].dt.strftime("%Y-%m")
 
     return df_exp, df_inc
 
 # =====================================================
-# ▶️ Run
+# ▶️ RUN
 # =====================================================
 df_exp, df_inc = load_data()
 
 # =====================================================
-# 🔍 Filters (Top – Mobile UX)
+# 🔍 Filters
 # =====================================================
 st.markdown("### 🔍 التصفية")
 
@@ -143,9 +143,6 @@ with c2:
 with c3:
     day = st.selectbox("اليوم", ["الكل"] + list(range(1, 32)))
 
-# =====================================================
-# 🎯 Apply Filters
-# =====================================================
 exp_f = df_exp[(df_exp["السنة"] == year) & (df_exp["الشهر"] == month)]
 inc_f = df_inc[(df_inc["السنة"] == year) & (df_inc["الشهر"] == month)]
 
@@ -169,31 +166,15 @@ st.metric("💰 صافي الربح", f"{net:,.0f} ج.م")
 # =====================================================
 # 📉 Charts
 # =====================================================
-st.markdown("## 📉 التحليل")
-
 if not exp_f.empty:
     exp_grp = exp_f.groupby(exp_f.columns[0])["المبلغ"].sum().reset_index()
-    fig1 = px.bar(
-        exp_grp,
-        x="المبلغ",
-        y=exp_grp.columns[0],
-        orientation="h",
-        height=350
-    )
-    fig1.update_layout(title=None)
+    fig1 = px.bar(exp_grp, x="المبلغ", y=exp_grp.columns[0], orientation="h", height=350)
     st.plotly_chart(fig1, use_container_width=True)
 
 if not inc_f.empty:
     inc_grp = inc_f.groupby(inc_f.columns[0])["المبلغ"].sum().reset_index()
-    fig2 = px.bar(
-        inc_grp,
-        x="المبلغ",
-        y=inc_grp.columns[0],
-        orientation="h",
-        height=350,
-        color_discrete_sequence=["#2ecc71"]
-    )
-    fig2.update_layout(title=None)
+    fig2 = px.bar(inc_grp, x="المبلغ", y=inc_grp.columns[0], orientation="h",
+                  color_discrete_sequence=["#2ecc71"], height=350)
     st.plotly_chart(fig2, use_container_width=True)
 
 # =====================================================
