@@ -34,12 +34,11 @@ st.markdown("""
 # دالة تنظيف العملة
 def clean_currency(val):
     if isinstance(val, str):
-        # إزالة الرموز والمسافات
         val = val.replace('EGP', '').strip()
         val = val.replace('ج.م', '').strip()
-        val = val.replace('٬', '') # فاصلة الألوف العربية
-        val = val.replace('٫', '.') # العلامة العشرية العربية
-        val = val.replace(',', '') # فاصلة الألوف الإنجليزية
+        val = val.replace('٬', '') 
+        val = val.replace('٫', '.') 
+        val = val.replace(',', '') 
         try:
             return float(val)
         except:
@@ -56,29 +55,26 @@ def load_data():
         df_exp = pd.read_csv(url_exp)
         df_inc = pd.read_csv(url_inc)
     except Exception as e:
-        st.error(f"⚠️ فشل تحميل البيانات من جوجل شيت. السبب: {e}")
+        st.error(f"⚠️ فشل تحميل البيانات: {e}")
         st.stop()
 
     # --- معالجة المصاريف ---
-    # البحث عن عمود المبلغ بمرونة
     col_money_exp = None
     for col in df_exp.columns:
         if "المبلغ" in str(col) or "amount" in str(col).lower():
             col_money_exp = col
             break
-    if not col_money_exp: col_money_exp = df_exp.columns[4] # افتراضي لو ملقاش الاسم
+    if not col_money_exp: col_money_exp = df_exp.columns[4]
 
     df_exp[col_money_exp] = df_exp[col_money_exp].apply(clean_currency)
     df_exp['التاريخ'] = pd.to_datetime(df_exp['التاريخ'], errors='coerce')
     df_exp = df_exp.dropna(subset=['التاريخ'])
     
-    # استخراج التقسيمات الزمنية
     df_exp['السنة'] = df_exp['التاريخ'].dt.year
     df_exp['الشهر'] = df_exp['التاريخ'].dt.month
     df_exp['اليوم'] = df_exp['التاريخ'].dt.day
     df_exp['الشهر_سنة'] = df_exp['التاريخ'].dt.strftime('%Y-%m')
     
-    # توحيد اسم عمود المبلغ
     df_exp = df_exp.rename(columns={col_money_exp: 'المبلغ (جم)'})
 
     # --- معالجة الدخل ---
@@ -105,30 +101,29 @@ def load_data():
 # تنفيذ التحميل
 df_exp, df_inc = load_data()
 
-# --- الفلاتر (Dropdowns) ---
+# --- الفلاتر ---
 st.sidebar.header("🔍 خيارات التصفية")
 
-# 1. السنة (تلقائي: السنة الحالية)
+# السنة
 current_year = datetime.now().year
 years_list = sorted(list(set(df_exp['السنة'].unique()) | set(df_inc['السنة'].unique())), reverse=True)
 if current_year not in years_list: years_list.insert(0, current_year)
 selected_year = st.sidebar.selectbox("السنة", years_list)
 
-# 2. الشهر (تلقائي: الشهر الحالي)
+# الشهر
 current_month = datetime.now().month
 months_map = {1:'يناير', 2:'فبراير', 3:'مارس', 4:'أبريل', 5:'مايو', 6:'يونيو', 
               7:'يوليو', 8:'أغسطس', 9:'سبتمبر', 10:'أكتوبر', 11:'نوفمبر', 12:'ديسمبر'}
 selected_month_num = st.sidebar.selectbox("الشهر", list(months_map.keys()), format_func=lambda x: months_map[x], index=current_month-1)
 
-# 3. اليوم (اختياري)
-# فلتر ذكي: يظهر فقط الأيام الموجودة في الشهر والسنة المحددين
+# اليوم
 days_exp = df_exp[(df_exp['السنة'] == selected_year) & (df_exp['الشهر'] == selected_month_num)]['اليوم']
 days_inc = df_inc[(df_inc['السنة'] == selected_year) & (df_inc['الشهر'] == selected_month_num)]['اليوم']
 available_days = sorted(list(set(days_exp) | set(days_inc)))
 
 selected_day = st.sidebar.selectbox("اليوم (اختياري)", ["الكل"] + available_days)
 
-# --- تطبيق الفلاتر ---
+# تطبيق الفلتر
 if selected_day == "الكل":
     mask_exp = (df_exp['السنة'] == selected_year) & (df_exp['الشهر'] == selected_month_num)
     mask_inc = (df_inc['السنة'] == selected_year) & (df_inc['الشهر'] == selected_month_num)
@@ -144,12 +139,11 @@ df_inc_filtered = df_inc.loc[mask_inc]
 # --- الواجهة الرئيسية ---
 st.title(f"📊 التقرير المالي: {title_suffix}")
 
-# زر التحديث
 if st.button("🔄 تحديث البيانات الآن"):
     st.cache_data.clear()
     st.rerun()
 
-# 1. بطاقات الأرقام (KPIs)
+# 1. KPIs
 total_exp = df_exp_filtered['المبلغ (جم)'].sum()
 total_inc = df_inc_filtered['المبلغ المحصل (جم)'].sum()
 net_profit = total_inc - total_exp
@@ -161,64 +155,89 @@ col3.metric("📥 التحصيلات", f"{total_inc:,.0f} ج.م")
 
 st.markdown("---")
 
-# 2. تحليل البنود الرئيسية (الطلب الجديد)
-if not df_exp_filtered.empty:
-    st.subheader("📋 تفاصيل المصاريف (حسب البند)")
-    
-    # تجميع حسب البند الرئيسي
-    grouped = df_exp_filtered.groupby('البند الرئيسي')['المبلغ (جم)'].sum().reset_index()
-    grouped = grouped.sort_values(by='المبلغ (جم)', ascending=False)
-    
-    c_table, c_chart = st.columns([1, 1])
-    
-    with c_table:
-        st.dataframe(
-            grouped,
-            column_config={
-                "البند الرئيسي": "البند",
-                "المبلغ (جم)": st.column_config.NumberColumn("القيمة", format="%d ج.م")
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-    
-    with c_chart:
-        try:
-            fig_bar = px.bar(grouped, x='المبلغ (جم)', y='البند الرئيسي', orientation='h', text_auto='.2s')
-            fig_bar.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(l=0,r=0,t=0,b=0))
-            st.plotly_chart(fig_bar, use_container_width=True)
-        except Exception as e:
-            st.warning(f"تعذر رسم المخطط: {e}")
+# 2. تحليل البنود (مصاريف + تحصيلات)
+col_analysis_1, col_analysis_2 = st.columns(2)
 
-else:
-    st.info(f"لا توجد مصاريف مسجلة في {title_suffix}")
+# أ) تحليل المصاريف
+with col_analysis_1:
+    if not df_exp_filtered.empty:
+        st.subheader("📋 تفاصيل المصاريف")
+        grouped_exp = df_exp_filtered.groupby('البند الرئيسي')['المبلغ (جم)'].sum().reset_index()
+        grouped_exp = grouped_exp.sort_values(by='المبلغ (جم)', ascending=False)
+        
+        st.dataframe(grouped_exp, column_config={"البند الرئيسي": "البند", "المبلغ (جم)": st.column_config.NumberColumn("القيمة", format="%d")}, use_container_width=True, hide_index=True)
+        
+        try:
+            fig_bar_exp = px.bar(grouped_exp, x='المبلغ (جم)', y='البند الرئيسي', orientation='h', text_auto='.2s', title="توزيع المصاريف")
+            fig_bar_exp.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig_bar_exp, use_container_width=True)
+        except: pass
+    else:
+        st.info("لا توجد مصاريف")
+
+# ب) تحليل التحصيلات (الطلب الجديد)
+with col_analysis_2:
+    if not df_inc_filtered.empty:
+        st.subheader("📋 تفاصيل التحصيلات")
+        # التجميع حسب نوع التحصيل
+        grouped_inc = df_inc_filtered.groupby('نوع التحصيل')['المبلغ المحصل (جم)'].sum().reset_index()
+        grouped_inc = grouped_inc.sort_values(by='المبلغ المحصل (جم)', ascending=False)
+        
+        st.dataframe(grouped_inc, column_config={"نوع التحصيل": "المصدر", "المبلغ المحصل (جم)": st.column_config.NumberColumn("القيمة", format="%d")}, use_container_width=True, hide_index=True)
+        
+        try:
+            fig_bar_inc = px.bar(grouped_inc, x='المبلغ المحصل (جم)', y='نوع التحصيل', orientation='h', text_auto='.2s', title="توزيع مصادر الدخل", color_discrete_sequence=['#2ecc71'])
+            fig_bar_inc.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig_bar_inc, use_container_width=True)
+        except: pass
+    else:
+        st.info("لا توجد تحصيلات")
 
 st.markdown("---")
 
-# 3. الرسوم البيانية الدائرية
-col_pie1, col_pie2 = st.columns(2)
-
-with col_pie1:
-    if not df_exp_filtered.empty:
-        st.caption("توزيع المصاريف (%)")
-        try:
-            fig_p1 = px.pie(df_exp_filtered, values='المبلغ (جم)', names='البند الرئيسي', hole=0.5)
-            fig_p1.update_layout(margin=dict(t=0, b=0, l=0, r=0))
-            st.plotly_chart(fig_p1, use_container_width=True)
-        except: pass
-
-with col_pie2:
-    if not df_inc_filtered.empty:
-        st.caption("مصادر الدخل (%)")
-        try:
-            fig_p2 = px.pie(df_inc_filtered, values='المبلغ المحصل (جم)', names='نوع التحصيل', hole=0.5)
-            fig_p2.update_layout(margin=dict(t=0, b=0, l=0, r=0))
-            st.plotly_chart(fig_p2, use_container_width=True)
-        except: pass
-
-# 4. الجداول التفصيلية (داخل قوائم منسدلة)
+# 3. الجداول التفصيلية
 with st.expander("📄 عرض جدول المصاريف التفصيلي"):
     st.dataframe(df_exp_filtered, use_container_width=True)
 
 with st.expander("📄 عرض جدول التحصيلات التفصيلي"):
     st.dataframe(df_inc_filtered, use_container_width=True)
+
+st.markdown("---")
+
+# 4. ملخص شهري شامل (كل البيانات) - (الطلب الجديد)
+st.header("📅 ملخص الأداء الشهري (لكل الفترات)")
+st.caption("يعرض هذا الجدول جميع الشهور الموجودة في الملف للمقارنة")
+
+# تجميع كل المصاريف حسب الشهر
+all_exp_monthly = df_exp.groupby('الشهر_سنة')['المبلغ (جم)'].sum().reset_index()
+all_exp_monthly.rename(columns={'المبلغ (جم)': 'المصاريف'}, inplace=True)
+
+# تجميع كل الدخل حسب الشهر
+all_inc_monthly = df_inc.groupby('الشهر_سنة')['المبلغ المحصل (جم)'].sum().reset_index()
+all_inc_monthly.rename(columns={'المبلغ المحصل (جم)': 'التحصيلات'}, inplace=True)
+
+# دمج الجدولين
+monthly_summary = pd.merge(all_inc_monthly, all_exp_monthly, on='الشهر_سنة', how='outer').fillna(0)
+monthly_summary['صافي الربح'] = monthly_summary['التحصيلات'] - monthly_summary['المصاريف']
+monthly_summary = monthly_summary.sort_values('الشهر_سنة')
+
+# رسم بياني للمقارنة
+melted_summary = monthly_summary.melt(id_vars=['الشهر_سنة'], value_vars=['التحصيلات', 'المصاريف'], var_name='النوع', value_name='المبلغ')
+
+fig_history = px.bar(melted_summary, x='الشهر_سنة', y='المبلغ', color='النوع', 
+                     barmode='group', text_auto='.2s',
+                     color_discrete_map={'التحصيلات': '#2ecc71', 'المصاريف': '#e74c3c'},
+                     title="مقارنة الدخل والمصاريف عبر الشهور")
+st.plotly_chart(fig_history, use_container_width=True)
+
+# عرض الجدول الشامل
+st.dataframe(
+    monthly_summary.style.format("{:,.0f}"),
+    use_container_width=True,
+    column_config={
+        "الشهر_سنة": "الشهر",
+        "التحصيلات": st.column_config.NumberColumn("إجمالي التحصيلات", format="%d ج.م"),
+        "المصاريف": st.column_config.NumberColumn("إجمالي المصاريف", format="%d ج.م"),
+        "صافي الربح": st.column_config.NumberColumn("صافي الربح", format="%d ج.م"),
+    }
+)
