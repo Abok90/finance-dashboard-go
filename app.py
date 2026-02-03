@@ -20,31 +20,32 @@ st.markdown("""
 body { background-color: #0e1117; }
 
 .card {
-    background: #ffffff;
+    background: #1c1f26;
     padding: 18px;
     border-radius: 16px;
     margin-bottom: 14px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
     direction: rtl;
     text-align: right;
 }
 
 .card-title {
     font-size: 0.95rem;
-    color: #555;
+    color: #9aa4b2;
     margin-bottom: 6px;
 }
 
 .card-value {
-    font-size: 2.2rem;
-    font-weight: 900;
-    color: #000;
+    font-size: 2.1rem;
+    font-weight: 800;
+    color: #ffffff;
 }
 
 .section-title {
     color: #ffffff;
     font-size: 1.2rem;
-    margin: 20px 0 10px;
+    margin: 22px 0 10px;
+    font-weight: bold;
 }
 
 .stDataFrame {
@@ -105,15 +106,26 @@ df_exp, df_inc = load_data()
 # ================== FILTERS ==================
 today = datetime.today()
 
+years_available = sorted(set(df_exp["السنة"]) | set(df_inc["السنة"]))
+default_year = max(years_available) if years_available else today.year
+
 st.markdown("<div class='section-title'>🔍 التصفية</div>", unsafe_allow_html=True)
 
 c1, c2, c3 = st.columns(3)
 with c1:
-    year = st.selectbox("السنة", sorted(df_exp["السنة"].unique()), index=0)
+    year = st.selectbox(
+        "السنة",
+        years_available,
+        index=years_available.index(default_year)
+    )
 with c2:
-    month = st.selectbox("الشهر", list(range(1,13)), index=today.month-1)
+    month = st.selectbox(
+        "الشهر",
+        list(range(1, 13)),
+        index=today.month - 1
+    )
 with c3:
-    day = st.selectbox("اليوم", ["الكل"] + list(range(1,32)))
+    day = st.selectbox("اليوم", ["الكل"] + list(range(1, 32)))
 
 exp_f = df_exp[(df_exp["السنة"] == year) & (df_exp["الشهر"] == month)]
 inc_f = df_inc[(df_inc["السنة"] == year) & (df_inc["الشهر"] == month)]
@@ -147,13 +159,14 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================== CHARTS ==================
-st.markdown("<div class='section-title'>📉 التحليل المالي</div>", unsafe_allow_html=True)
+st.markdown("<div class='section-title'>📉 تفاصيل المصروفات</div>", unsafe_allow_html=True)
 
 if not exp_f.empty:
-    st.subheader("🔻 المصروفات حسب البند")
     g = exp_f.groupby(exp_f.columns[0])["المبلغ"].sum().reset_index()
     fig = px.bar(
-        g, x="المبلغ", y=g.columns[0],
+        g,
+        x="المبلغ",
+        y=g.columns[0],
         orientation="h",
         height=420,
         text_auto=".2s",
@@ -168,11 +181,14 @@ if not exp_f.empty:
     )
     st.plotly_chart(fig, use_container_width=True)
 
+st.markdown("<div class='section-title'>📈 تفاصيل التحصيلات</div>", unsafe_allow_html=True)
+
 if not inc_f.empty:
-    st.subheader("🟢 التحصيلات حسب المصدر")
     g = inc_f.groupby(inc_f.columns[0])["المبلغ"].sum().reset_index()
     fig = px.bar(
-        g, x="المبلغ", y=g.columns[0],
+        g,
+        x="المبلغ",
+        y=g.columns[0],
         orientation="h",
         height=420,
         text_auto=".2s",
@@ -188,8 +204,8 @@ if not inc_f.empty:
     st.plotly_chart(fig, use_container_width=True)
 
 # ================== TABLES ==================
-with st.expander("📄 تفاصيل المصروفات"):
+with st.expander("📄 تفاصيل المصروفات (جدول)"):
     st.dataframe(exp_f, use_container_width=True)
 
-with st.expander("📄 تفاصيل التحصيلات"):
+with st.expander("📄 تفاصيل التحصيلات (جدول)"):
     st.dataframe(inc_f, use_container_width=True)
