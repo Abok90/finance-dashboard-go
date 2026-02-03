@@ -204,40 +204,44 @@ with st.expander("📄 عرض جدول التحصيلات التفصيلي"):
 
 st.markdown("---")
 
-# 4. ملخص شهري شامل (كل البيانات) - (الطلب الجديد)
+# 4. ملخص شهري شامل (كل البيانات)
 st.header("📅 ملخص الأداء الشهري (لكل الفترات)")
 st.caption("يعرض هذا الجدول جميع الشهور الموجودة في الملف للمقارنة")
 
-# تجميع كل المصاريف حسب الشهر
-all_exp_monthly = df_exp.groupby('الشهر_سنة')['المبلغ (جم)'].sum().reset_index()
-all_exp_monthly.rename(columns={'المبلغ (جم)': 'المصاريف'}, inplace=True)
+if not df_exp.empty or not df_inc.empty:
+    # تجميع كل المصاريف حسب الشهر
+    all_exp_monthly = df_exp.groupby('الشهر_سنة')['المبلغ (جم)'].sum().reset_index()
+    all_exp_monthly.rename(columns={'المبلغ (جم)': 'المصاريف'}, inplace=True)
 
-# تجميع كل الدخل حسب الشهر
-all_inc_monthly = df_inc.groupby('الشهر_سنة')['المبلغ المحصل (جم)'].sum().reset_index()
-all_inc_monthly.rename(columns={'المبلغ المحصل (جم)': 'التحصيلات'}, inplace=True)
+    # تجميع كل الدخل حسب الشهر
+    all_inc_monthly = df_inc.groupby('الشهر_سنة')['المبلغ المحصل (جم)'].sum().reset_index()
+    all_inc_monthly.rename(columns={'المبلغ المحصل (جم)': 'التحصيلات'}, inplace=True)
 
-# دمج الجدولين
-monthly_summary = pd.merge(all_inc_monthly, all_exp_monthly, on='الشهر_سنة', how='outer').fillna(0)
-monthly_summary['صافي الربح'] = monthly_summary['التحصيلات'] - monthly_summary['المصاريف']
-monthly_summary = monthly_summary.sort_values('الشهر_سنة')
+    # دمج الجدولين
+    monthly_summary = pd.merge(all_inc_monthly, all_exp_monthly, on='الشهر_سنة', how='outer').fillna(0)
+    monthly_summary['صافي الربح'] = monthly_summary['التحصيلات'] - monthly_summary['المصاريف']
+    monthly_summary = monthly_summary.sort_values('الشهر_سنة')
 
-# رسم بياني للمقارنة
-melted_summary = monthly_summary.melt(id_vars=['الشهر_سنة'], value_vars=['التحصيلات', 'المصاريف'], var_name='النوع', value_name='المبلغ')
+    # رسم بياني للمقارنة
+    melted_summary = monthly_summary.melt(id_vars=['الشهر_سنة'], value_vars=['التحصيلات', 'المصاريف'], var_name='النوع', value_name='المبلغ')
 
-fig_history = px.bar(melted_summary, x='الشهر_سنة', y='المبلغ', color='النوع', 
-                     barmode='group', text_auto='.2s',
-                     color_discrete_map={'التحصيلات': '#2ecc71', 'المصاريف': '#e74c3c'},
-                     title="مقارنة الدخل والمصاريف عبر الشهور")
-st.plotly_chart(fig_history, use_container_width=True)
+    fig_history = px.bar(melted_summary, x='الشهر_سنة', y='المبلغ', color='النوع', 
+                         barmode='group', text_auto='.2s',
+                         color_discrete_map={'التحصيلات': '#2ecc71', 'المصاريف': '#e74c3c'},
+                         title="مقارنة الدخل والمصاريف عبر الشهور")
+    st.plotly_chart(fig_history, use_container_width=True)
 
-# عرض الجدول الشامل
-st.dataframe(
-    monthly_summary.style.format("{:,.0f}"),
-    use_container_width=True,
-    column_config={
-        "الشهر_سنة": "الشهر",
-        "التحصيلات": st.column_config.NumberColumn("إجمالي التحصيلات", format="%d ج.م"),
-        "المصاريف": st.column_config.NumberColumn("إجمالي المصاريف", format="%d ج.م"),
-        "صافي الربح": st.column_config.NumberColumn("صافي الربح", format="%d ج.م"),
-    }
-)
+    # عرض الجدول الشامل (تم إصلاح الخطأ هنا)
+    st.dataframe(
+        monthly_summary,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "الشهر_سنة": "الشهر",
+            "التحصيلات": st.column_config.NumberColumn("إجمالي التحصيلات", format="%d ج.م"),
+            "المصاريف": st.column_config.NumberColumn("إجمالي المصاريف", format="%d ج.م"),
+            "صافي الربح": st.column_config.NumberColumn("صافي الربح", format="%d ج.م"),
+        }
+    )
+else:
+    st.info("لا توجد بيانات كافية لعرض الملخص الشهري")
